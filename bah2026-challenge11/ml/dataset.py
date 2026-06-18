@@ -1,24 +1,27 @@
-"""SAROpticalPairDataset — PyTorch Dataset for SEN1-2 paired SAR/Optical images."""
+"""SAROpticalPairDataset with SAR-specific augmentations and mixup support."""
 
 from __future__ import annotations
 
 import os
+import random
 from pathlib import Path
 from typing import Callable, Optional
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
-
-try:
-    import rasterio
-    HAS_RASTERIO = True
-except ImportError:
-    HAS_RASTERIO = False
+from torchvision.transforms import functional as TF
 
 from loguru import logger
 
+try:
+    import rasterio
+
+    HAS_RASTERIO = True
+except ImportError:
+    HAS_RASTERIO = False
 
 # ImageNet mean/std for Optical (Sentinel-2 RGB)
 OPTICAL_MEAN = [0.485, 0.456, 0.406]
@@ -31,13 +34,63 @@ SAR_STD = [1.0]
 IMAGE_SIZE = 224
 
 
+# ---------------------------------------------------------------------------
+# SAR-specific augmentations
+# ---------------------------------------------------------------------------
+
+
+class SpeckleNoise:
+    """Multiplicative speckle noise for SAR images.
+
+    Adds Rayleigh/Gamma-distributed multiplicative noise that mimics SAR
+    speckle patterns.
+
+    Args:
+        sigma: Standard deviation of the noise (default 0.1).
+        p:     Probability of applying this transform (default 0.5).
+    """
+
+    def __init__(self, sigma: float = 0.1, p: float = 0.5) -> None:
+        self.sigma = sigma
+        self.p = p
+
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply speckle noise to a SAR tensor.
+
+        Args:
+            x: Float tensor of any shape.
+
+        Returns:
+            Noise-augmented tensor of the same shape.
+        """
+        if random.random() > self.p:
+            return x
+        noise = torch.randn_like(x) * self.sigma
+        return x * (1.0 + noise)
+
+
+class SARNormalize(transforms.Normalize):
+    """Convenience wrapper — normalise after log1p is already applied."""
+
+    pass
+
+
 def _build_sar_transforms(augment: bool = True) -> transforms.Compose:
-    """Build SAR-specific transform pipeline."""
+    """Build SAR-specific transform pipeline including speckle noise.
+
+    Args:
+        augment: Whether to apply augmentations (only during training).
+
+    Returns:
+        A composed transform pipeline.
+    """
     ops: list = []
     if augment:
         ops += [
-            transforms.RandomHorizontalFlip(),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomVerticalFlip(p=0.3),
             transforms.RandomRotation(degrees=15),
+            SpeckleNoise(sigma=0.1, p=0.5),
         ]
     ops += [
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
@@ -47,13 +100,20 @@ def _build_sar_transforms(augment: bool = True) -> transforms.Compose:
 
 
 def _build_optical_transforms(augment: bool = True) -> transforms.Compose:
-    """Build Optical-specific transform pipeline."""
+    """Build Optical-specific transform pipeline.
+
+    Args:
+        augment: Whether to apply augmentations.
+
+    Returns:
+        A composed transform pipeline.
+    """
     ops: list = []
     if augment:
         ops += [
-            transforms.RandomHorizontalFlip(),
+            transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomRotation(degrees=15),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.1),
         ]
     ops += [
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
@@ -62,40 +122,58 @@ def _build_optical_transforms(augment: bool = True) -> transforms.Compose:
     return transforms.Compose(ops)
 
 
+# ---------------------------------------------------------------------------
+# Image loading
+# ---------------------------------------------------------------------------
+
+
 def _load_sar_image(path: str) -> torch.Tensor:
     """Load a single-channel GeoTIFF SAR image and apply log1p transform.
 
-    Returns a float32 tensor of shape (1, H, W).
+    Args:
+        path: Filesystem path to the SAR GeoTIFF.
+
+    Returns:
+        Float32 tensor of shape (1, H, W).
     """
     if HAS_RASTERIO:
         with rasterio.open(path) as src:
-            arr = src.read(1).astype(np.float32)  # (H, W)
+            arr = src.read(1).astype(np.float32)
     else:
         from PIL import Image
+
         arr = np.array(Image.open(path).convert("L"), dtype=np.float32)
 
-    arr = np.log1p(np.clip(arr, 0, None))  # log1p for SAR backscatter
-    tensor = torch.from_numpy(arr).unsqueeze(0)  # (1, H, W)
-    return tensor
+    arr = np.log1p(np.clip(arr, 0, None))
+    return torch.from_numpy(arr).unsqueeze(0)  # (1, H, W)
 
 
 def _load_optical_image(path: str) -> torch.Tensor:
     """Load a 3-channel GeoTIFF Optical image.
 
-    Returns a float32 tensor of shape (3, H, W) in [0, 1] range.
+    Args:
+        path: Filesystem path to the Optical GeoTIFF.
+
+    Returns:
+        Float32 tensor of shape (3, H, W) in [0, 1] range.
     """
     if HAS_RASTERIO:
         with rasterio.open(path) as src:
-            arr = src.read([1, 2, 3]).astype(np.float32)  # (3, H, W)
-            # Normalise from [0, 10000] Sentinel-2 range to [0, 1]
+            arr = src.read([1, 2, 3]).astype(np.float32)
             arr = np.clip(arr / 10000.0, 0, 1)
     else:
         from PIL import Image
+
         img = Image.open(path).convert("RGB")
-        arr = np.array(img, dtype=np.float32) / 255.0  # (H, W, 3)
-        arr = arr.transpose(2, 0, 1)  # (3, H, W)
+        arr = np.array(img, dtype=np.float32) / 255.0
+        arr = arr.transpose(2, 0, 1)
 
     return torch.from_numpy(arr)
+
+
+# ---------------------------------------------------------------------------
+# Dataset
+# ---------------------------------------------------------------------------
 
 
 class SAROpticalPairDataset(Dataset):
@@ -104,17 +182,14 @@ class SAROpticalPairDataset(Dataset):
     Expected directory layout::
 
         root_dir/
-          s1/       <- SAR .tif files, named <pair_id>_s1.tif
-          s2/       <- Optical .tif files, named <pair_id>_s2.tif
-
-    The dataset discovers all pair IDs from the s1 subdirectory and filters
-    to the requested split using a deterministic 80/10/10 partition.
+          s1/   <- SAR .tif files, named <pair_id>_s1.tif
+          s2/   <- Optical .tif files, named <pair_id>_s2.tif
 
     Args:
         root_dir:  Path to the dataset root.
-        split:     One of "train", "val", or "test".
-        transform: Optional callable applied after the built-in per-modality
-                   augmentations.  Receives the full sample dict.
+        split:     One of ``"train"``, ``"val"``, or ``"test"``.
+        transform: Optional callable applied to the full sample dict after
+                   per-modality augmentations.
     """
 
     SPLITS = ("train", "val", "test")
@@ -143,10 +218,6 @@ class SAROpticalPairDataset(Dataset):
             f"from {self.root_dir}"
         )
 
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
-
     def _discover_pairs(self) -> list[str]:
         """Discover and split pair IDs deterministically."""
         s1_dir = self.root_dir / "s1"
@@ -157,7 +228,6 @@ class SAROpticalPairDataset(Dataset):
             p.stem.replace("_s1", "") for p in s1_dir.glob("*_s1.tif")
         )
         if not all_ids:
-            # Fallback: any .tif file in s1/
             all_ids = sorted(p.stem for p in s1_dir.glob("*.tif"))
 
         n = len(all_ids)
@@ -168,7 +238,7 @@ class SAROpticalPairDataset(Dataset):
             return all_ids[:n_train]
         elif self.split == "val":
             return all_ids[n_train : n_train + n_val]
-        else:  # test
+        else:
             return all_ids[n_train + n_val :]
 
     def _sar_path(self, pair_id: str) -> Path:
@@ -183,27 +253,30 @@ class SAROpticalPairDataset(Dataset):
             p = self.root_dir / "s2" / f"{pair_id}.tif"
         return p
 
-    # ------------------------------------------------------------------
-    # Dataset interface
-    # ------------------------------------------------------------------
-
     def __len__(self) -> int:
         return len(self.pair_ids)
 
     def __getitem__(self, idx: int) -> dict:
-        """Return a sample dict with SAR tensor, Optical tensor, and pair_id."""
+        """Return a sample dict with SAR tensor, Optical tensor, and pair_id.
+
+        Args:
+            idx: Sample index.
+
+        Returns:
+            Dict with keys ``"sar"`` (1, H, W), ``"optical"`` (3, H, W),
+            ``"pair_id"`` (str).
+        """
         pair_id = self.pair_ids[idx]
 
         sar_tensor = _load_sar_image(str(self._sar_path(pair_id)))
         optical_tensor = _load_optical_image(str(self._optical_path(pair_id)))
 
-        # Per-modality augmentations / normalization
         sar_tensor = self.sar_transform(sar_tensor)
         optical_tensor = self.optical_transform(optical_tensor)
 
         sample = {
-            "sar": sar_tensor,       # (1, 224, 224)
-            "optical": optical_tensor,  # (3, 224, 224)
+            "sar": sar_tensor,
+            "optical": optical_tensor,
             "pair_id": pair_id,
         }
 
@@ -211,6 +284,50 @@ class SAROpticalPairDataset(Dataset):
             sample = self.transform(sample)
 
         return sample
+
+
+# ---------------------------------------------------------------------------
+# Mixup collator
+# ---------------------------------------------------------------------------
+
+
+class MixupCollator:
+    """Collate function that applies mixup augmentation to optical images.
+
+    Mixup blends each optical image with a random other image in the batch,
+    using a Beta(alpha, alpha) mixing coefficient.  SAR images and pair_ids
+    are left unchanged.
+
+    Args:
+        alpha: Beta distribution parameter (default 0.2).  Set to 0 to
+               disable mixup.
+    """
+
+    def __init__(self, alpha: float = 0.2) -> None:
+        self.alpha = alpha
+
+    def __call__(self, batch: list[dict]) -> dict:
+        """Collate and apply mixup to optical images.
+
+        Args:
+            batch: List of sample dicts from the Dataset.
+
+        Returns:
+            Batched dict with mixed optical images.
+        """
+        collated = torch.utils.data.dataloader.default_collate(batch)
+
+        if self.alpha <= 0:
+            return collated
+
+        optical = collated["optical"]  # (B, 3, H, W)
+        B = optical.size(0)
+        lam = float(np.random.beta(self.alpha, self.alpha))
+
+        perm = torch.randperm(B)
+        collated["optical"] = lam * optical + (1.0 - lam) * optical[perm]
+
+        return collated
 
 
 # ---------------------------------------------------------------------------
@@ -222,13 +339,15 @@ def create_dataloaders(
     root_dir: str | Path,
     batch_size: int = 64,
     num_workers: int = 4,
+    mixup_alpha: float = 0.2,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Create train, val, and test DataLoaders for SEN1-2.
 
     Args:
-        root_dir:    Path to dataset root (must contain s1/ and s2/ subdirs).
-        batch_size:  Mini-batch size.
-        num_workers: Parallel data-loading workers.
+        root_dir:     Path to dataset root (must contain s1/ and s2/).
+        batch_size:   Mini-batch size.
+        num_workers:  Parallel data-loading workers.
+        mixup_alpha:  Mixup alpha for optical images during training (0 = off).
 
     Returns:
         A (train_loader, val_loader, test_loader) tuple.
@@ -239,7 +358,13 @@ def create_dataloaders(
     val_ds = SAROpticalPairDataset(root_dir, split="val")
     test_ds = SAROpticalPairDataset(root_dir, split="test")
 
-    def _loader(ds: Dataset, shuffle: bool) -> DataLoader:
+    train_collate = MixupCollator(alpha=mixup_alpha) if mixup_alpha > 0 else None
+
+    def _loader(
+        ds: Dataset,
+        shuffle: bool,
+        collate_fn: Optional[Callable] = None,
+    ) -> DataLoader:
         return DataLoader(
             ds,
             batch_size=batch_size,
@@ -248,10 +373,11 @@ def create_dataloaders(
             pin_memory=True,
             drop_last=shuffle,
             persistent_workers=num_workers > 0,
+            collate_fn=collate_fn,
         )
 
     return (
-        _loader(train_ds, shuffle=True),
+        _loader(train_ds, shuffle=True, collate_fn=train_collate),
         _loader(val_ds, shuffle=False),
         _loader(test_ds, shuffle=False),
     )
