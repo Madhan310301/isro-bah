@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bah2026-challenge11:latest
+    container_name: bah2026_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - MODEL_CHECKPOINT_PATH=/app/checkpoints/best_model.pt
+      - FAISS_INDEX_PATH=/app/faiss_index
+      - MODEL_BACKBONE=resnet50
+      - PYTHONPATH=/app
+    volumes:
+      # Mount for hot-swapping checkpoints / indices without rebuilding
+      - ./checkpoints:/app/checkpoints:ro
+      - ./faiss_index:/app/faiss_index:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Uncomment for GPU support (requires nvidia-container-toolkit)
+  # api-gpu:
+  #   extends:
+  #     service: api
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   environment:
+  #     - NVIDIA_VISIBLE_DEVICES=all
+  #     - NVIDIA_DRIVER_CAPABILITIES=compute,utility

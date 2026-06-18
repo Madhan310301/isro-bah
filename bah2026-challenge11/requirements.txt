@@ -1,0 +1,46 @@
+# Core ML
+torch==2.1.0
+torchvision==0.16.0
+numpy==1.26.4
+
+# FAISS (CPU — swap for faiss-gpu on GPU machines)
+faiss-cpu==1.7.4
+
+# Image I/O
+Pillow==10.3.0
+rasterio==1.3.10
+
+# FastAPI + server
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+python-multipart==0.0.9
+
+# Rate limiting
+slowapi==0.1.9
+
+# Pydantic v2
+pydantic==2.7.1
+
+# Supabase
+supabase==2.4.3
+
+# Config / env
+python-dotenv==1.0.1
+
+# Logging
+loguru==0.7.2
+
+# RemoteCLIP / GeoRSCLIP (optional — install only for Phase 3)
+# open-clip-torch==2.24.0
+# huggingface_hub==0.23.0
+
+# Training utilities
+wandb==0.17.0
+
+# Testing
+pytest==8.2.0
+pytest-asyncio==0.23.7
+httpx==0.27.0
+
+# Type stubs
+types-Pillow==10.2.0.20240520
