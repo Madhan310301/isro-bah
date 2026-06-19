@@ -1,0 +1,391 @@
+Cross-Modal Satellite Image Retrieval | ML + Backend Track
+
+Bharatiya Antariksh Hackathon 2026 (ISRO x Hack2skill)
+
+
+CONTEXT & MISSION
+
+You are an expert ML engineer and Python backend developer helping me build a
+Cross-Modal Satellite Image Retrieval system for the Bharatiya Antariksh
+Hackathon 2026, organized by ISRO and Hack2skill, where 104,300+ teams are
+competing. This is Challenge 11.
+
+The core problem: Given a SAR (Synthetic Aperture Radar) satellite image,
+retrieve the visually corresponding Optical satellite image of the same
+geographic area — and vice versa. SAR and Optical images of the same location
+look completely different (SAR uses radar backscatter, Optical uses RGB/NIR
+reflectance), so this is a hard cross-modal matching problem that cannot be
+solved with standard image similarity. We solve it using contrastive learning
+to embed both modalities into a shared 512-dimensional vector space, then use
+FAISS for fast nearest-neighbor retrieval.
+
+My role: ML Engineer + Backend Developer (Maddy)
+My tech stack: Python 3.11, PyTorch 2.x, FastAPI, FAISS, Supabase, Docker
+Dataset: SEN1-2 (Sentinel-1 SAR paired with Sentinel-2 Optical, 4 seasons,
+~180,000 pairs)
+Deployment target: Single server or cloud VM (GPU preferred, must work on CPU
+for demo)
+
+
+ARCHITECTURE OVERVIEW
+
+Build the following system end-to-end:
+
+SEN1-2 Dataset
+     │
+     ▼
+SAROpticalPairDataset (PyTorch Dataset class)
+     │
+     ▼
+DualEncoder (ResNet50 backbone × 2 + ProjectionHead MLP)
+     │  trained with InfoNCE / NT-Xent contrastive loss
+     ▼
+FAISS Index (IndexFlatIP with 512-dim normalized embeddings)
+     │
+     ▼
+FastAPI Backend (/api/search, /api/health, /api/embed)
+     │        │
+     ▼        ▼
+  FAISS    Supabase (image metadata, file storage, geo-coords)
+
+The frontend (Next.js, built by teammate Dharshini) will call /api/search with
+a base64-encoded image and a modality flag ("sar" or "optical"), and receive back
+the top-K matching images with similarity scores and Supabase Storage URLs.
+
+
+TASK 1 — DATA LAYER (SAROpticalPairDataset)
+
+Write a complete PyTorch Dataset class SAROpticalPairDataset with:
+
+
+Constructor args: root_dir, split ("train"/"val"/"test"), transform=None
+Loads paired SAR (Sentinel-1, single-channel GeoTIFF) and Optical
+(Sentinel-2, 3-channel RGB GeoTIFF) images
+Applies independent augmentations to each modality:
+
+SAR: random horizontal flip, random rotation (±15°), normalize with
+SAR-specific mean/std (mean=0.0, std=1.0 after log1p transform)
+Optical: random horizontal flip, random rotation (±15°), ColorJitter
+(brightness=0.2, contrast=0.2), normalize with ImageNet mean/std
+
+
+
+Returns a dict: {"sar": tensor(1,H,W), "optical": tensor(3,H,W), "pair_id": str}
+Resize all images to 224×224
+
+
+Also write:
+
+
+create_dataloaders(root_dir, batch_size=64, num_workers=4) that returns
+train, val, and test DataLoaders with 80/10/10 split
+
+
+
+TASK 2 — MODEL (DualEncoder + ProjectionHead)
+
+Build the full model architecture:
+
+ProjectionHead MLP:
+
+
+Linear(in_dim, 512) → BatchNorm1d(512) → ReLU → Linear(512, 512)
+Output is L2-normalized (unit sphere projection)
+Supports configurable in_dim (default 2048 for ResNet50)
+
+
+DualEncoder:
+
+
+Two separate encoders: sar_encoder and optical_encoder
+Each encoder = pretrained ResNet50 (ImageNet weights) with the final FC layer
+replaced by ProjectionHead
+forward(sar, optical) returns (sar_emb, optical_emb), both shape (B, 512)
+Add encode_sar(x) and encode_optical(x) convenience methods for inference
+
+
+Important: Load pretrained ResNet50 with weights=ResNet50_Weights.DEFAULT.
+Freeze the first 2 layers (layer1, layer2) for the first 5 epochs, then unfreeze
+for fine-tuning.
+
+
+TASK 3 — LOSS FUNCTION (InfoNCE / NT-Xent)
+
+Implement InfoNCELoss:
+
+
+Takes (sar_emb, optical_emb) both shape (B, 512), already L2-normalized
+Computes symmetric cross-modal contrastive loss:
+loss = 0.5 * (sar_to_optical_loss + optical_to_sar_loss)
+Uses temperature parameter τ (default=0.07)
+Diagonal of the similarity matrix = positive pairs
+All off-diagonal = negatives (in-batch negatives)
+Return scalar loss + accuracy (fraction of correct top-1 retrievals in batch)
+
+
+Also implement a hard-negative mining variant HardNegativeInfoNCELoss that
+weights the hardest 25% of negatives by 2× in the loss.
+
+
+TASK 4 — TRAINING SCRIPT
+
+Write a complete train.py script with:
+
+Config (argparse or dataclass):
+
+
+--epochs 30
+--batch_size 64
+--lr 1e-4 (AdamW)
+--weight_decay 1e-4
+--temperature 0.07
+--data_dir ./data/SEN12
+--checkpoint_dir ./checkpoints
+--use_wandb flag
+
+
+Training loop:
+
+
+Cosine annealing LR scheduler with warmup (5 epochs linear warmup)
+Gradient clipping (max_norm=1.0)
+Mixed precision training with torch.cuda.amp.autocast
+Validation every epoch: compute Recall@1, Recall@5, Recall@10 on val set
+Save best checkpoint by Recall@1 (both best_model.pt and epoch checkpoints)
+Log: train loss, val loss, Recall@K metrics, learning rate
+
+
+Validation function evaluate(model, dataloader, device):
+
+
+Encode entire val set into embeddings
+Build in-memory FAISS index from optical embeddings
+Query with SAR embeddings
+Compute and return: Recall@1, Recall@5, Recall@10, mAP, MRR
+
+
+
+TASK 5 — FAISS INDEX BUILDER
+
+Write build_index.py:
+
+
+Loads best checkpoint
+Runs inference over the full dataset (or a configurable subset)
+Builds faiss.IndexFlatIP (inner product = cosine similarity for normalized vecs)
+Wraps it in faiss.IndexIDMap so each vector maps to a numeric ID
+Saves:
+
+index.faiss — the FAISS binary
+metadata.json — maps numeric ID → {pair_id, modality, season, supabase_url, lat, lon}
+
+
+
+Also builds a separate SAR index and Optical index for cross-modal retrieval
+Targets: index build time < 60 seconds for 50k pairs
+
+
+
+TASK 6 — FASTAPI BACKEND
+
+Build app/main.py with FastAPI:
+
+Endpoints:
+
+GET /api/health
+
+
+Returns: {"status": "ok", "model": "DualEncoder-v1", "index_size": N, "device": "cuda/cpu"}
+
+
+POST /api/search
+
+
+Body: {"image_b64": str, "modality": "sar"|"optical", "top_k": int = 10}
+Validates modality, decodes base64 image, preprocesses (resize 224×224, normalize)
+Encodes with the appropriate encoder (sar_encoder or optical_encoder)
+Queries the opposite modality's FAISS index
+Returns:
+
+
+json{
+  "query_modality": "sar",
+  "results": [
+    {
+      "rank": 1,
+      "similarity": 0.94,
+      "pair_id": "ROIs1158_spring_s1_1",
+      "supabase_url": "https://...",
+      "lat": 28.6,
+      "lon": 77.2,
+      "season": "spring"
+    }
+  ],
+  "inference_time_ms": 45
+}
+
+POST /api/embed
+
+
+Body: {"image_b64": str, "modality": "sar"|"optical"}
+Returns the raw 512-dim embedding as a list (for debugging/visualization)
+
+
+Middleware:
+
+
+CORS (allow all origins for hackathon)
+Request timing middleware that logs inference time
+Global exception handler that returns structured error JSON
+Rate limiting: 30 requests/minute per IP using slowapi
+
+
+Startup:
+
+
+Load model checkpoint on app startup into global model variable
+Load FAISS index and metadata.json into memory
+Log device, index size, model name
+
+
+Supabase integration:
+
+
+Use supabase-py to fetch image URLs from the satellite_images table
+Table schema: (id, pair_id, modality, season, storage_path, lat, lon, created_at)
+Cache Supabase URL lookups in a Python dict to avoid repeated DB calls
+
+
+
+TASK 7 — SUPABASE SETUP
+
+Provide SQL to create the Supabase table:
+
+sqlCREATE TABLE satellite_images (
+  id BIGSERIAL PRIMARY KEY,
+  pair_id TEXT NOT NULL,
+  modality TEXT CHECK (modality IN ('sar', 'optical')),
+  season TEXT,
+  storage_path TEXT,
+  lat FLOAT8,
+  lon FLOAT8,
+  embedding_id BIGINT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX ON satellite_images(pair_id);
+CREATE INDEX ON satellite_images(embedding_id);
+
+Also write a upload_to_supabase.py script that:
+
+
+Takes a folder of image files
+Uploads each to Supabase Storage bucket satellite-images
+Inserts metadata row into the table
+Saves the storage_path → embedding_id mapping for FAISS sync
+
+
+
+TASK 8 — DOCKER
+
+Write Dockerfile and docker-compose.yml:
+
+
+Base image: pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
+Installs requirements.txt
+Copies app, model checkpoint, FAISS index
+Exposes port 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+docker-compose.yml with FastAPI service + optional GPU passthrough
+
+
+
+TASK 9 — EVALUATION METRICS
+
+Write evaluate.py that computes:
+
+
+Recall@K (K = 1, 5, 10): fraction of queries where correct match is in top-K
+mAP (mean Average Precision): for ranked retrieval quality
+MRR (Mean Reciprocal Rank): average of 1/rank of correct result
+Inference latency: p50, p95, p99 in milliseconds
+Throughput: queries per second
+Outputs a pretty table + saves metrics.json
+
+
+
+TASK 10 — REMOTECLIP INTEGRATION (Phase 3)
+
+After training from scratch works, also support loading RemoteCLIP or
+GeoRSCLIP pretrained weights as the backbone instead of vanilla ResNet50.
+Write a model_factory.py with:
+
+
+create_model(backbone="resnet50"|"remoteclip"|"georsCLIP", ...)
+RemoteCLIP loads from HuggingFace: huggingface_hub.snapshot_download("torchgeo/RemoteCLIP")
+Replaces only the projection head on top of pretrained visual encoder
+Expect ~5-8% Recall@1 improvement vs vanilla ResNet50 baseline
+
+
+
+CODE QUALITY REQUIREMENTS
+
+
+All functions must have type hints and docstrings
+Use loguru for logging (not print statements)
+Use pydantic for all FastAPI request/response models
+Configuration via .env file (use python-dotenv): SUPABASE_URL,
+SUPABASE_KEY, MODEL_CHECKPOINT_PATH, FAISS_INDEX_PATH
+Include requirements.txt with pinned versions
+Write unit tests for: InfoNCELoss, ProjectionHead output shape,
+SAROpticalPairDataset.__getitem__, /api/health endpoint
+
+
+
+FOLDER STRUCTURE
+
+bah2026-challenge11/
+├── app/
+│   ├── main.py          # FastAPI app
+│   ├── models.py        # Pydantic schemas
+│   ├── inference.py     # Model loading + FAISS search
+│   └── supabase_client.py
+├── ml/
+│   ├── dataset.py       # SAROpticalPairDataset
+│   ├── model.py         # DualEncoder + ProjectionHead
+│   ├── loss.py          # InfoNCELoss
+│   ├── train.py         # Training script
+│   └── model_factory.py # RemoteCLIP integration
+├── scripts/
+│   ├── build_index.py
+│   ├── upload_to_supabase.py
+│   └── evaluate.py
+├── tests/
+│   ├── test_loss.py
+│   ├── test_model.py
+│   └── test_api.py
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+└── .env.example
+
+
+IMPORTANT NOTES
+
+
+The system must work on CPU for the demo (judges may not have GPU access).
+Add device = torch.device("cuda" if torch.cuda.is_available() else "cpu").
+FAISS index must be pre-built and loaded at startup — do NOT build it
+on-the-fly during a request.
+For the 30-hour Grand Finale (Aug 6-7), the priorities in order are:
+a. Working /api/search endpoint with real results
+b. Recall@1 > 60% on SEN1-2 test set
+c. Inference latency < 200ms per query on CPU
+d. Dockerized deployment
+The FAISS index should initially contain ~10,000 pairs (demo subset) but the
+architecture must scale to 180,000 pairs without code changes.
+Write code that Dharshini (Next.js frontend) can call immediately. The
+/api/search response format is the contract — do not change field names.
+
+
+Now build this system step by step, starting with the dataset class and model
+architecture, then the training script, then the FastAPI backend.

@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "bah2026-challenge11"
+version = "2.0.0"
+description = "Cross-Modal Satellite Image Retrieval for BAH2026 Challenge 11 (ISRO)"
+requires-python = ">=3.11"
+readme = "README.md"
+
+# ── Black ──────────────────────────────────────────────────────────────────
+
+[tool.black]
+line-length = 99
+target-version = ["py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+  \.git | \.mypy_cache | \.pytest_cache | __pycache__
+)/
+'''
+
+# ── isort ─────────────────────────────────────────────────────────────────
+
+[tool.isort]
+profile = "black"
+line_length = 99
+known_first_party = ["app", "ml", "scripts"]
+skip_glob = ["*/__pycache__/*"]
+
+# ── mypy ──────────────────────────────────────────────────────────────────
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+warn_return_any = false
+warn_unused_ignores = true
+no_implicit_optional = true
+show_error_codes = true
+exclude = ["tests/"]
+
+[[tool.mypy.overrides]]
+module = ["faiss.*", "rasterio.*", "timm.*", "open_clip.*", "wandb.*", "umap.*"]
+ignore_missing_imports = true
+
+# ── Ruff ──────────────────────────────────────────────────────────────────
+
+[tool.ruff]
+line-length = 99
+target-version = "py311"
+exclude = [".git", "__pycache__", ".mypy_cache", ".pytest_cache"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B"]
+ignore = [
+  "E501",   # line too long (handled by black)
+  "B008",   # do not perform function call in default args (FastAPI pattern)
+  "N803",   # argument name should be lowercase (some ML conventions)
+]
+
+# ── pytest ────────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"

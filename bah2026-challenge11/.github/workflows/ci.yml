@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "bah2026-challenge11/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "bah2026-challenge11/**"
+
+defaults:
+  run:
+    working-directory: bah2026-challenge11
+
+jobs:
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('bah2026-challenge11/requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Install CPU-only dependencies
+        run: |
+          pip install --upgrade pip
+          # Install torch CPU-only for CI speed
+          pip install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt --no-deps
+          # Re-install without torch to avoid conflict
+          pip install \
+            faiss-cpu==1.7.4 \
+            Pillow==10.3.0 \
+            fastapi==0.111.0 \
+            uvicorn==0.30.1 \
+            python-multipart==0.0.9 \
+            slowapi==0.1.9 \
+            pydantic==2.7.1 \
+            python-dotenv==1.0.1 \
+            loguru==0.7.2 \
+            pytest==8.2.0 \
+            pytest-asyncio==0.23.7 \
+            httpx==0.27.0 \
+            timm
+
+      - name: Run unit tests
+        run: pytest tests/ -v --tb=short -x
+
+  lint:
+    name: ruff + mypy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install linting tools
+        run: pip install ruff mypy types-Pillow
+
+      - name: Ruff lint
+        run: ruff check app/ ml/ scripts/ tests/ --output-format=github
+
+      - name: mypy (app + ml)
+        run: mypy app/ ml/ --ignore-missing-imports --no-error-summary
+        continue-on-error: true   # type errors are warnings during development

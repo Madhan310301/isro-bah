@@ -1,0 +1,99 @@
+I have a Python ML project for ISRO's Bharatiya Antariksh Hackathon 2026, 
+Challenge 11: Cross-Modal Satellite Image Retrieval Using Multi-Sensor 
+Remote Sensing Data.
+
+Current stack: PyTorch DualEncoder (ResNet50), InfoNCE loss, FAISS vector 
+search, FastAPI backend, Supabase for metadata.
+
+Please improve the project with the following upgrades:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. ML MODEL UPGRADES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Replace ResNet50 backbone with ViT-B/16 (Vision Transformer) using timm
+- Add RemoteCLIP as an optional pre-trained backbone in model_factory.py
+  (load from HuggingFace: "flywire/RemoteCLIP")
+- Add a MomentumEncoder (momentum=0.995) for more stable contrastive 
+  training (MoCo-style)
+- Increase embedding_dim from 256 to 512
+- Add a third encoder slot for thermal/IR modality (future-proofing)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. TRAINING IMPROVEMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Add multi-GPU support using torch.nn.DataParallel
+- Add early stopping (patience=5, monitor Recall@10)
+- Add SAR-specific augmentations: speckle noise, random flipping, 
+  rotation
+- Add mixup augmentation for optical images
+- Save training curves as PNG (loss, Recall@1, Recall@10 per epoch)
+- Add a --resume flag to train.py to resume from last checkpoint
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. FAISS INDEX IMPROVEMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Switch from IndexFlatIP to IndexHNSWFlat for faster approximate search
+- Add index versioning (save with timestamp: optical_v2_20260806.faiss)
+- Add incremental index updates (add new embeddings without full rebuild)
+- Add a /api/index/stats endpoint showing total vectors, index type, 
+  memory usage
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. FASTAPI BACKEND IMPROVEMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Add /api/search/batch endpoint (accept multiple images at once)
+- Add /api/similar endpoint (find similar images within same modality)
+- Add response caching with Redis (TTL=300s); fallback to in-memory 
+  if Redis not available
+- Add JWT authentication middleware (optional, toggle via .env flag 
+  ENABLE_AUTH=true/false)
+- Add structured logging with loguru (log every search: modality, 
+  latency, top score)
+- Return geographic bounding box coordinates in search results 
+  if available in metadata
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. EVALUATION UPGRADES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Add t-SNE and UMAP visualizations of the embedding space (save as PNG)
+- Add a confusion heatmap of cross-modal similarity scores
+- Add per-season evaluation (spring/summer/autumn/winter splits)
+- Export full metrics report as metrics_report.pdf using reportlab
+- Add a --quick flag for fast evaluation on 500 random pairs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. INDIA-SPECIFIC DATA PIPELINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Add a scripts/fetch_india_gee.py script that uses the Google Earth 
+  Engine Python API to download Sentinel-1/2 paired patches for:
+  Chennai, Mumbai, Delhi, Bangalore, Kerala (flood region)
+- Add cloud masking for Sentinel-2 optical images (SCL band)
+- Save patches as GeoTIFF with embedded coordinate metadata
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. DOCKER & DEPLOYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Split docker-compose.yml into 3 services: api, redis, nginx
+- Add nginx.conf as a reverse proxy for FastAPI
+- Add a Makefile with commands: make train, make index, make serve, 
+  make test, make eval
+- Add GitHub Actions CI workflow (.github/workflows/ci.yml) that runs 
+  pytest on every push
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. CODE QUALITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Add type hints to every function
+- Add docstrings in Google style to every class and function
+- Add a pyproject.toml with black, isort, and mypy configs
+- Fix any existing bugs or anti-patterns you find
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT CONSTRAINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Keep all Replit-native config (.replit, replit.nix) intact
+- Do not break existing working endpoints /api/search and /api/health
+- All new features must be backwards compatible
+- Redis and GEE are optional; gracefully stub out if not configured
+- Everything must still run on CPU (no hard GPU requirement)
+- Keep requirements.txt updated with all new dependencies
