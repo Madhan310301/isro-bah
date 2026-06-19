@@ -24,10 +24,10 @@ class ProjectionHead(nn.Module):
 
     Args:
         in_dim:  Dimensionality of input features (default 768 for ViT-B/16).
-        out_dim: Dimensionality of output embeddings (default 512).
+        out_dim: Dimensionality of output embeddings (default 256).
     """
 
-    def __init__(self, in_dim: int = 768, out_dim: int = 512) -> None:
+    def __init__(self, in_dim: int = 768, out_dim: int = 256) -> None:
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(in_dim, out_dim),
@@ -53,7 +53,7 @@ class ProjectionHead(nn.Module):
 # ---------------------------------------------------------------------------
 
 
-def _build_vit_encoder(in_channels: int = 3, emb_dim: int = 512) -> nn.Module:
+def _build_vit_encoder(in_channels: int = 3, emb_dim: int = 256) -> nn.Module:
     """Build a ViT-B/16 encoder with ProjectionHead (requires timm).
 
     Args:
@@ -90,7 +90,7 @@ def _build_vit_encoder(in_channels: int = 3, emb_dim: int = 512) -> nn.Module:
     return ViTEncoder()
 
 
-def _build_resnet_encoder(in_channels: int = 3, emb_dim: int = 512) -> nn.Module:
+def _build_resnet_encoder(in_channels: int = 3, emb_dim: int = 256) -> nn.Module:
     """Build a ResNet50 encoder with ProjectionHead (ImageNet pretrained).
 
     Args:
@@ -187,7 +187,7 @@ class DualEncoder(nn.Module):
     MoCo-style training stability.
 
     Args:
-        emb_dim:  Shared embedding dimension (default 512).
+        emb_dim:  Shared embedding dimension (default 256).
         backbone: ``"vit"`` or ``"resnet50"``.
         with_thermal: If True, instantiate a third encoder for thermal/IR.
         momentum: EMA momentum for momentum encoders (default 0.995).
@@ -195,7 +195,7 @@ class DualEncoder(nn.Module):
 
     def __init__(
         self,
-        emb_dim: int = 512,
+        emb_dim: int = 256,
         backbone: str = "vit",
         with_thermal: bool = False,
         momentum: float = 0.995,

@@ -292,7 +292,7 @@ async def embed(
     body: EmbedRequest,
     _auth: Optional[dict] = Depends(require_auth),
 ):
-    """Return the raw 512-dimensional embedding for a query image (debug/viz)."""
+    """Return the raw 256-dimensional embedding for a query image (debug/viz)."""
     _check_model()
 
     try:

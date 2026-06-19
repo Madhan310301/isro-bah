@@ -64,7 +64,7 @@ class TrainConfig:
     grad_clip: float = 1.0
     num_workers: int = 4
     use_wandb: bool = False
-    emb_dim: int = 512
+    emb_dim: int = 256
     backbone: str = "vit"
     mixup_alpha: float = 0.2
     resume: str = ""
@@ -90,7 +90,7 @@ def parse_args() -> TrainConfig:
     parser.add_argument("--grad_clip", type=float, default=1.0)
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--use_wandb", action="store_true")
-    parser.add_argument("--emb_dim", type=int, default=512)
+    parser.add_argument("--emb_dim", type=int, default=256)
     parser.add_argument("--backbone", type=str, default="vit", choices=["vit", "resnet50"])
     parser.add_argument("--mixup_alpha", type=float, default=0.2)
     parser.add_argument("--resume", type=str, default="",

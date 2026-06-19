@@ -3,10 +3,10 @@
 Usage::
 
     # Full evaluation
-    python -m scripts.evaluate --checkpoint ./checkpoints/best_model.pt --data_dir ./data/SEN12
+    python -m ml.evaluate --checkpoint ./checkpoints/best_model.pt --data_dir ./data/SEN12
 
     # Quick mode (500 random pairs)
-    python -m scripts.evaluate --checkpoint ./checkpoints/best_model.pt --quick
+    python -m ml.evaluate --checkpoint ./checkpoints/best_model.pt --quick
 """
 
 from __future__ import annotations
@@ -191,7 +191,12 @@ def _save_tsne(
         idx = np.random.choice(len(sar_embs), n, replace=False)
         combined = np.vstack([sar_embs[idx], opt_embs[idx]])
 
-        tsne = TSNE(n_components=2, random_state=42, perplexity=30, n_iter=1000)
+        if combined.shape[0] < 2:
+            logger.warning("t-SNE skipped: Not enough samples to fit t-SNE.")
+            return
+
+        perp = min(30, max(1, combined.shape[0] - 1))
+        tsne = TSNE(n_components=2, random_state=42, perplexity=perp, max_iter=1000)
         coords = tsne.fit_transform(combined)
 
         fig, ax = plt.subplots(figsize=(10, 8))
@@ -213,8 +218,8 @@ def _save_tsne(
         plt.savefig(output_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
         logger.info(f"t-SNE saved → {output_path}")
-    except ImportError as exc:
-        logger.warning(f"t-SNE skipped (missing {exc})")
+    except Exception as exc:
+        logger.warning(f"t-SNE skipped: {exc}")
 
 
 def _save_umap(
@@ -239,7 +244,12 @@ def _save_umap(
         idx = np.random.choice(len(sar_embs), n, replace=False)
         combined = np.vstack([sar_embs[idx], opt_embs[idx]])
 
-        reducer = umap.UMAP(n_components=2, random_state=42, metric="cosine")
+        if combined.shape[0] < 2:
+            logger.warning("UMAP skipped: Not enough samples to fit UMAP.")
+            return
+
+        n_neighbors = min(15, max(2, combined.shape[0] - 1))
+        reducer = umap.UMAP(n_components=2, n_neighbors=n_neighbors, random_state=42, metric="cosine")
         coords = reducer.fit_transform(combined)
 
         fig, ax = plt.subplots(figsize=(10, 8))
@@ -254,8 +264,8 @@ def _save_umap(
         plt.savefig(output_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
         logger.info(f"UMAP saved → {output_path}")
-    except ImportError as exc:
-        logger.warning(f"UMAP skipped (missing {exc})")
+    except Exception as exc:
+        logger.warning(f"UMAP skipped: {exc}")
 
 
 def _save_similarity_heatmap(
@@ -294,8 +304,8 @@ def _save_similarity_heatmap(
         plt.savefig(output_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
         logger.info(f"Similarity heatmap saved → {output_path}")
-    except ImportError as exc:
-        logger.warning(f"Heatmap skipped (missing {exc})")
+    except Exception as exc:
+        logger.warning(f"Heatmap skipped: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -397,8 +407,8 @@ def _save_pdf_report(
 
         doc.build(story)
         logger.info(f"PDF report saved → {output_path}")
-    except ImportError as exc:
-        logger.warning(f"PDF report skipped (missing reportlab): {exc}")
+    except Exception as exc:
+        logger.warning(f"PDF report skipped: {exc}")
 
 
 # ---------------------------------------------------------------------------

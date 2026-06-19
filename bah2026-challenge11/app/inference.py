@@ -97,7 +97,7 @@ class InferenceEngine:
         self.model_name: str = "DualEncoder-v1"
         self.index_version: str = "unknown"
         self.index_type: str = "IndexHNSWFlat"
-        self.emb_dim: int = 512
+        self.emb_dim: int = 256
 
     def load(
         self,

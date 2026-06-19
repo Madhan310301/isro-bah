@@ -10,13 +10,13 @@ from ml.model import DualEncoder, ProjectionHead
 
 class TestProjectionHead:
     def test_output_shape(self):
-        head = ProjectionHead(in_dim=2048, out_dim=512)
+        head = ProjectionHead(in_dim=2048, out_dim=256)
         x = torch.randn(8, 2048)
         out = head(x)
-        assert out.shape == (8, 512), f"Expected (8, 512), got {out.shape}"
+        assert out.shape == (8, 256), f"Expected (8, 256), got {out.shape}"
 
     def test_output_is_l2_normalized(self):
-        head = ProjectionHead(in_dim=2048, out_dim=512)
+        head = ProjectionHead(in_dim=2048, out_dim=256)
         x = torch.randn(8, 2048)
         out = head(x)
         norms = out.norm(dim=1)
@@ -31,7 +31,7 @@ class TestProjectionHead:
         assert out.shape == (4, 256)
 
     def test_gradient_flows(self):
-        head = ProjectionHead()
+        head = ProjectionHead(in_dim=2048, out_dim=256)
         x = torch.randn(4, 2048, requires_grad=True)
         out = head(x)
         out.sum().backward()
@@ -41,14 +41,22 @@ class TestProjectionHead:
 class TestDualEncoder:
     @pytest.fixture(scope="class")
     def model(self):
-        return DualEncoder(emb_dim=512)
+        from unittest.mock import patch
+        import torchvision.models
+        original_resnet50 = torchvision.models.resnet50
+        def mock_resnet50(*args, **kwargs):
+            if "weights" in kwargs:
+                kwargs["weights"] = None
+            return original_resnet50(*args, **kwargs)
+        with patch("torchvision.models.resnet50", mock_resnet50):
+            return DualEncoder(backbone="resnet50", emb_dim=256)
 
     def test_forward_output_shapes(self, model):
         sar = torch.randn(4, 1, 224, 224)
         optical = torch.randn(4, 3, 224, 224)
         sar_emb, opt_emb = model(sar, optical)
-        assert sar_emb.shape == (4, 512), f"Expected (4, 512), got {sar_emb.shape}"
-        assert opt_emb.shape == (4, 512), f"Expected (4, 512), got {opt_emb.shape}"
+        assert sar_emb.shape == (4, 256), f"Expected (4, 256), got {sar_emb.shape}"
+        assert opt_emb.shape == (4, 256), f"Expected (4, 256), got {opt_emb.shape}"
 
     def test_embeddings_are_normalized(self, model):
         sar = torch.randn(4, 1, 224, 224)
@@ -60,12 +68,12 @@ class TestDualEncoder:
     def test_encode_sar_convenience(self, model):
         sar = torch.randn(2, 1, 224, 224)
         out = model.encode_sar(sar)
-        assert out.shape == (2, 512)
+        assert out.shape == (2, 256)
 
     def test_encode_optical_convenience(self, model):
         optical = torch.randn(2, 3, 224, 224)
         out = model.encode_optical(optical)
-        assert out.shape == (2, 512)
+        assert out.shape == (2, 256)
 
     def test_freeze_schedule_epoch_0(self, model):
         model.set_freeze_schedule(epoch=0)
@@ -85,9 +93,10 @@ class TestDualEncoder:
 
     def test_sar_encoder_single_channel(self, model):
         """Ensure SAR encoder accepts 1-channel input without error."""
+        model.eval()
         sar = torch.randn(1, 1, 224, 224)
         out = model.encode_sar(sar)
-        assert out.shape == (1, 512)
+        assert out.shape == (1, 256)
 
     def test_separate_encoder_weights(self, model):
         """Verify SAR and Optical encoders have independent weight tensors."""

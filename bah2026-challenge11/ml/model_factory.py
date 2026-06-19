@@ -32,14 +32,14 @@ class RemoteCLIPSingleEncoder(nn.Module):
     Args:
         hf_repo:     HuggingFace repo ID (e.g. ``"flywire/RemoteCLIP"``).
         model_arch:  open_clip model architecture string (default ``"ViT-B-32"``).
-        emb_dim:     Output embedding dimension (default 512).
+        emb_dim:     Output embedding dimension (default 256).
     """
 
     def __init__(
         self,
         hf_repo: str = "flywire/RemoteCLIP",
         model_arch: str = "ViT-B-32",
-        emb_dim: int = 512,
+        emb_dim: int = 256,
     ) -> None:
         super().__init__()
         self.emb_dim = emb_dim
@@ -103,7 +103,7 @@ class RemoteCLIPDualEncoder(nn.Module):
         self,
         hf_repo: str = "flywire/RemoteCLIP",
         model_arch: str = "ViT-B-32",
-        emb_dim: int = 512,
+        emb_dim: int = 256,
     ) -> None:
         super().__init__()
         self.emb_dim = emb_dim
@@ -140,7 +140,7 @@ class RemoteCLIPDualEncoder(nn.Module):
 
 def create_model(
     backbone: BackboneType = "vit",
-    emb_dim: int = 512,
+    emb_dim: int = 256,
     checkpoint_path: Optional[str] = None,
     device: Optional[str] = None,
     with_thermal: bool = False,
@@ -150,7 +150,7 @@ def create_model(
     Args:
         backbone:        One of ``"resnet50"``, ``"vit"``, ``"remoteclip"``,
                          ``"georsCLIP"``.
-        emb_dim:         Output embedding dimension (default 512).
+        emb_dim:         Output embedding dimension (default 256).
         checkpoint_path: Optional path to a ``best_model.pt`` checkpoint.
         device:          Device string (default: auto-detect).
         with_thermal:    If True, also build a thermal encoder (DualEncoder only).
@@ -160,7 +160,7 @@ def create_model(
 
     Example::
 
-        model = create_model(backbone="remoteclip", emb_dim=512)
+        model = create_model(backbone="remoteclip", emb_dim=256)
     """
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"

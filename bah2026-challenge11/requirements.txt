@@ -1,6 +1,6 @@
 # ── Core ML ───────────────────────────────────────────────────────────────
-torch==2.1.0
-torchvision==0.16.0
+torch>=2.1.0
+torchvision>=0.16.0
 numpy==1.26.4
 timm==0.9.16                   # ViT-B/16 backbone
 

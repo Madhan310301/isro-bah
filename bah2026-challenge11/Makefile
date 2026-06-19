@@ -90,7 +90,7 @@ test-coverage:
 # ── Evaluation ────────────────────────────────────────────────────────────
 
 eval:
-	$(PYTHON) -m scripts.evaluate \
+	$(PYTHON) -m ml.evaluate \
 		--checkpoint $(CHECKPOINT) \
 		--data_dir $(DATA_DIR) \
 		--output $(REPORT) \
@@ -98,7 +98,7 @@ eval:
 		--backbone $(BACKBONE)
 
 eval-quick:
-	$(PYTHON) -m scripts.evaluate \
+	$(PYTHON) -m ml.evaluate \
 		--checkpoint $(CHECKPOINT) \
 		--data_dir $(DATA_DIR) \
 		--output ./metrics_quick.json \

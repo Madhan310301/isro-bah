@@ -11,7 +11,7 @@ from ml.loss import HardNegativeInfoNCELoss, InfoNCELoss
 @pytest.fixture
 def batch() -> tuple[torch.Tensor, torch.Tensor]:
     """Return a small batch of random L2-normalized embeddings."""
-    B, D = 16, 512
+    B, D = 16, 256
     sar = torch.randn(B, D)
     sar = sar / sar.norm(dim=1, keepdim=True)
     optical = torch.randn(B, D)
@@ -40,7 +40,7 @@ class TestInfoNCELoss:
 
     def test_perfect_pairs_high_accuracy(self):
         """When embeddings are identical for positive pairs, accuracy should be 1."""
-        B, D = 8, 512
+        B, D = 8, 256
         emb = torch.randn(B, D)
         emb = emb / emb.norm(dim=1, keepdim=True)
         loss_fn = InfoNCELoss(temperature=0.07)

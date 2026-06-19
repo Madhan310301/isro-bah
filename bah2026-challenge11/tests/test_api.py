@@ -32,7 +32,7 @@ def _make_b64_image(mode: str = "RGB", size: tuple = (224, 224)) -> str:
 @pytest.fixture(autouse=True)
 def mock_engine():
     """Patch the inference engine singleton with a minimal mock."""
-    dummy_emb = np.random.rand(512).astype("float32")
+    dummy_emb = np.random.rand(256).astype("float32")
     dummy_emb /= np.linalg.norm(dummy_emb)
 
     mock = MagicMock()
@@ -64,9 +64,9 @@ def mock_engine():
 def client(mock_engine):
     from app.main import app
 
-    with patch.object(app.state, "supabase", MagicMock()):
-        with TestClient(app) as c:
-            yield c
+    with TestClient(app) as c:
+        c.app.state.supabase = MagicMock()
+        yield c
 
 
 # ---------------------------------------------------------------------------
@@ -170,8 +170,8 @@ class TestEmbedEndpoint:
             "modality": "optical",
         }
         data = client.post("/api/embed", json=payload).json()
-        assert data["dimension"] == 512
-        assert len(data["embedding"]) == 512
+        assert data["dimension"] == 256
+        assert len(data["embedding"]) == 256
 
     def test_embed_sar(self, client):
         payload = {
