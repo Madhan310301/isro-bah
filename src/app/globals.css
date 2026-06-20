@@ -1,0 +1,202 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --font-inter: 'Inter', sans-serif;
+}
+
+body {
+  font-family: var(--font-inter);
+  background: #F8FAFC;
+  color: #1E293B;
+  overflow-x: hidden;
+  min-height: 100vh;
+  transition: background-color 0.4s ease;
+}
+
+/* White Bulletin Card Panel with Saffron Top Border (ISRO Website Style) */
+.glass-panel {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-top: 3.5px solid #F7941D;
+  box-shadow: 0 4px 8px -1px rgba(0, 59, 142, 0.03), 0 2px 4px -1px rgba(0, 59, 142, 0.01);
+  border-radius: 16px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-active {
+  border-top: 3.5px solid #003B8E;
+  box-shadow: 0 8px 16px 0 rgba(0, 59, 142, 0.06);
+}
+
+/* Standard cards inside white panels */
+.dashboard-card {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.dashboard-card-hover:hover {
+  border-color: #F7941D;
+  box-shadow: 0 8px 16px -3px rgba(247, 148, 29, 0.08);
+  transform: translateY(-2px);
+}
+
+/* Scrolling News Ticker Animation */
+@keyframes ticker {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+.animate-ticker {
+  display: inline-block;
+  white-space: nowrap;
+  animation: ticker 40s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F8FAFC;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 59, 142, 0.25);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 59, 142, 0.45);
+}
+
+/* Leaflet maps custom light mode overrides */
+.leaflet-container {
+  background: #f8fafc !important;
+  border-radius: 8px;
+  border: 1px solid #D6E3F5 !important;
+}
+
+.leaflet-bar a {
+  background-color: #ffffff !important;
+  color: #003B8E !important;
+  border-color: #D6E3F5 !important;
+}
+
+.leaflet-bar a:hover {
+  background-color: #EAF2FF !important;
+  color: #F7941D !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border: 1px solid #D6E3F5 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px rgba(0, 59, 142, 0.08) !important;
+}
+
+.leaflet-popup-tip {
+  background: #ffffff !important;
+}
+
+/* Floating Animated Logo & Orbits */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+  100% { transform: translateY(0px); }
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+
+/* curtain compare slider (Match saffron arrow styling) */
+.saffron-slider-bar {
+  background: linear-gradient(180deg, #F7941D 0%, #FFA834 50%, #F7941D 100%);
+  box-shadow: 0 0 12px rgba(247, 148, 29, 0.4);
+}
+
+.saffron-slider-handle {
+  width: 48px;
+  height: 48px;
+  background: #ffffff;
+  border: 3px solid #F7941D;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  cursor: ew-resize;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.saffron-slider-handle:hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 18px rgba(243, 112, 35, 0.5);
+}
+
+/* focus overlay popup modal styling */
+.map-focus-overlay {
+  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(16px);
+  }
+}
+
+/* Custom chart glow paths */
+.glow-saffron-path {
+  filter: drop-shadow(0px 2px 6px rgba(243, 112, 35, 0.4));
+}
+
+.glow-blue-path {
+  filter: drop-shadow(0px 2px 6px rgba(0, 94, 166, 0.4));
+}
+
+.btn-isro {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.btn-isro::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.btn-isro:hover::after {
+  opacity: 1;
+}
+
