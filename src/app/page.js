@@ -7,7 +7,7 @@ import ResultsGallery from '../components/ResultsGallery';
 import MetricsDashboard from '../components/MetricsDashboard';
 import SideBySideView from '../components/SideBySideView';
 import SystemLogs from '../components/SystemLogs';
-import { Globe, Bell, Wallet, UserCircle } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MapView = dynamic(() => import('../components/MapView'), {
@@ -50,7 +50,7 @@ export default function Home() {
     const mockImage = `data:image/svg+xml;utf8,${encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
         <rect width="256" height="256" fill="#e2e8f0" />
-        <circle cx="128" cy="128" r="40" stroke="#F37023" stroke-width="3" fill="none"/>
+        <circle cx="128" cy="128" r="40" stroke="#F7941D" stroke-width="3" fill="none"/>
         <text x="50" y="240" fill="#475569" font-size="8">Anchor Location: ${lat.toFixed(2)}, ${lng.toFixed(2)}</text>
       </svg>
     `)}`;
@@ -179,11 +179,13 @@ export default function Home() {
         </div>
 
         {/* Center: Mission Title */}
-        <div className="text-center py-1">
-          <h1 className="text-md sm:text-lg font-black text-primary-blue tracking-wide uppercase leading-tight">
-            Cross-Modal Satellite Image Retrieval
-          </h1>
-          <span className="text-[9px] text-[#F7941D] font-extrabold uppercase tracking-widest block mt-0.5">
+        <div className="text-center py-1 flex flex-col items-center">
+          <div className="bg-[#002147] px-4 py-1.5 rounded-lg border border-[#0E4FAF]/20 shadow-sm">
+            <h1 className="text-xs sm:text-sm font-black text-white tracking-wide uppercase leading-none">
+              Cross-Modal Satellite Image Retrieval
+            </h1>
+          </div>
+          <span className="text-[9px] text-[#F7941D] font-extrabold uppercase tracking-widest block mt-1.5">
             National Remote Sensing Center • Bhuvan Portal
           </span>
         </div>
@@ -208,7 +210,7 @@ export default function Home() {
             href="https://www.isro.gov.in" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="bg-[#0E4FAF] hover:bg-[#003B8E] text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2 rounded-lg transition-all border border-secondary-blue/30 shadow-sm"
+            className="bg-[#0E4FAF] hover:bg-[#003B8E] text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2 rounded-lg transition-all border border-[#0E4FAF]/30 shadow-sm"
           >
             Visit ISRO Portal
           </a>
@@ -326,7 +328,7 @@ export default function Home() {
                   <Globe className="w-5 h-5 text-isro-orange animate-pulse" />
                 </div>
                 <p className="text-xs font-bold text-slate-700 mt-3">Executing Cosine Similarity Search</p>
-                <p className="text-[9px] text-slate-500 mt-0.5">Calculating FAISS indexing matrices...</p>
+                <p className="text-[9px] text-slate-550 mt-0.5">Calculating FAISS indexing matrices...</p>
               </div>
             ) : (
               <ResultsGallery 
@@ -390,7 +392,7 @@ export default function Home() {
         </div>
 
         {/* Copyright branding footer */}
-        <div className="py-2 flex justify-between items-center text-[9px] text-slate-500 border-t border-border-light font-mono mt-1 select-none">
+        <div className="py-2 flex justify-between items-center text-[9px] text-slate-550 border-t border-border-light font-mono mt-1 select-none">
           <span>© 2026 ISRO Remote Control Center</span>
           <div className="flex gap-3">
             <a href="https://bhuvan.nrsc.gov.in" target="_blank" rel="noopener noreferrer" className="hover:text-isro-orange transition-colors">Bhuvan Platform</a>
